@@ -19,6 +19,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,23 +27,48 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/donovanhide/eventsource"
 )
 
 const indexHTML = `<!DOCTYPE html>
-<script src="wasm_exec.js"></script><script>
-(async () => {
-  const resp = await fetch('main.wasm');
-  if (!resp.ok) {
-    const pre = document.createElement('pre');
-    pre.innerText = await resp.text();
-    document.body.appendChild(pre);
-    return;
-  }
-  const src = await resp.arrayBuffer();
-  const go = new Go();
-  const result = await WebAssembly.instantiate(src, go.importObject);
-  go.run(result.instance);
-})();
+<script src="wasm_exec.js"></script>
+
+
+<script>
+
+	const loader = async () => {
+		const resp = await fetch('main.wasm');
+		if (!resp.ok) {
+		const pre = document.createElement('pre');
+		pre.innerText = await resp.text();
+		document.body.appendChild(pre);
+		return;
+		}
+		const src = await resp.arrayBuffer();
+		const go = new Go();
+		const result = await WebAssembly.instantiate(src, go.importObject);
+		go.run(result.instance);
+	}
+
+	(async () => {
+		const evtSource = new EventSource("/watch");
+		evtSource.onopen = function (e) {
+			console.log("Connection to server opened.");
+		};
+
+		evtSource.onerror = function (e) {
+			console.error(e);
+		}
+
+		evtSource.addEventListener('Change', async (e) => {
+			console.log('Changed', e.data);
+			await loader();
+		}, false);
+
+		await loader();
+	})();
+
 </script>
 `
 
@@ -50,6 +76,7 @@ var (
 	flagHTTP        = flag.String("http", ":8080", "HTTP bind address to serve")
 	flagTags        = flag.String("tags", "", "Build tags")
 	flagAllowOrigin = flag.String("allow-origin", "", "Allow specified origin (or * for all origins) to make requests to this server")
+	changed         = make(chan bool)
 )
 
 func ensureModule(path string) ([]byte, error) {
@@ -203,7 +230,21 @@ func handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
 	flag.Parse()
+	go watchFiles()
+
+	srv := eventsource.NewServer()
+	srv.Gzip = true
+	go publisher(srv)
+
+	defer srv.Close()
+	l, err := net.Listen("tcp", *flagHTTP)
+	if err != nil {
+		return
+	}
+	defer l.Close()
 	http.HandleFunc("/", handle)
-	log.Fatal(http.ListenAndServe(*flagHTTP, nil))
+	http.HandleFunc("/watch", srv.Handler("time"))
+	http.Serve(l, nil)
 }
