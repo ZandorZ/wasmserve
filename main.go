@@ -37,18 +37,15 @@ const indexHTML = `<!DOCTYPE html>
 
 <script>
 
+	const go = new Go();
+
 	const loader = async () => {
-		const resp = await fetch('main.wasm');
-		if (!resp.ok) {
-		const pre = document.createElement('pre');
-		pre.innerText = await resp.text();
-		document.body.appendChild(pre);
-		return;
-		}
-		const src = await resp.arrayBuffer();
-		const go = new Go();
-		const result = await WebAssembly.instantiate(src, go.importObject);
-		go.run(result.instance);
+
+		const source = await(await fetch('main.wasm')).arrayBuffer();
+		const  result = await WebAssembly.instantiate(source, go.importObject);
+		go.run(result.instance).then( () => {
+			console.log("pronto", go);
+		});
 	}
 
 	(async () => {
@@ -63,7 +60,7 @@ const indexHTML = `<!DOCTYPE html>
 
 		evtSource.addEventListener('Change', async (e) => {
 			console.log('Changed', e.data);
-			await loader();
+			window.location.reload();
 		}, false);
 
 		await loader();
@@ -73,7 +70,7 @@ const indexHTML = `<!DOCTYPE html>
 `
 
 var (
-	flagHTTP        = flag.String("http", ":8080", "HTTP bind address to serve")
+	flagHTTP        = flag.String("http", ":4200", "HTTP bind address to serve")
 	flagTags        = flag.String("tags", "", "Build tags")
 	flagAllowOrigin = flag.String("allow-origin", "", "Allow specified origin (or * for all origins) to make requests to this server")
 	changed         = make(chan bool)
