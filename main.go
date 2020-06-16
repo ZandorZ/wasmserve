@@ -60,7 +60,15 @@ const indexHTML = `<!DOCTYPE html>
 
 		evtSource.addEventListener('Change', async (e) => {
 			console.log('Changed', e.data);
-			window.location.reload();
+			// window.location.reload();
+
+			const sp = go._inst.exports.getsp();
+			go.importObject.go["runtime.wasmExit"](sp);
+			go._pendingEvent = null;
+            go._scheduledTimeouts = new Map();
+
+			await loader();
+
 		}, false);
 
 		await loader();
