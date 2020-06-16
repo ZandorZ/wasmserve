@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/donovanhide/eventsource"
+	"github.com/fatih/color"
 )
 
 const indexHTML = `<!DOCTYPE html>
@@ -41,11 +42,15 @@ const indexHTML = `<!DOCTYPE html>
 
 	const loader = async () => {
 
-		const source = await(await fetch('main.wasm')).arrayBuffer();
-		const  result = await WebAssembly.instantiate(source, go.importObject);
-		go.run(result.instance).then( () => {
-			console.log("pronto", go);
-		});
+		try{
+			const source = await(await fetch('main.wasm')).arrayBuffer();
+			const  result = await WebAssembly.instantiate(source, go.importObject);
+			go.run(result.instance).then( () => {
+				console.log("pronto", go);
+			});
+		}catch(e){
+			console.error(e);
+		}
 	}
 
 	(async () => {
@@ -62,10 +67,14 @@ const indexHTML = `<!DOCTYPE html>
 			console.log('Changed', e.data);
 			// window.location.reload();
 
-			const sp = go._inst.exports.getsp();
-			go.importObject.go["runtime.wasmExit"](sp);
-			go._pendingEvent = null;
-            go._scheduledTimeouts = new Map();
+			try{
+				const sp = go._inst.exports.getsp();
+				go.importObject.go["runtime.wasmExit"](sp);
+				go._pendingEvent = null;
+				go._scheduledTimeouts = new Map();
+			}catch(e){
+				console.error(e);
+			}
 
 			await loader();
 
@@ -212,13 +221,16 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		cmdBuild.Dir = workdir
 		out, err := cmdBuild.CombinedOutput()
 		if err != nil {
-			log.Print(err)
-			log.Print(string(out))
+			// log.Print(err)
+			// log.Print(string(out))
+			color.Red("Error: %s", err)
+			color.Red("Output: %s", string(out))
 			http.Error(w, string(out), http.StatusInternalServerError)
 			return
 		}
 		if len(out) > 0 {
-			log.Print(string(out))
+			//log.Print(string(out))
+			color.Yellow("%s", string(out))
 		}
 
 		f, err := os.Open(filepath.Join(output, "main.wasm"))

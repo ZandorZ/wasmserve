@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/donovanhide/eventsource"
+	"github.com/fatih/color"
 	"github.com/radovskyb/watcher"
 )
 
@@ -25,7 +26,8 @@ func watchFiles() {
 		for {
 			select {
 			case event := <-w.Event:
-				fmt.Println(event) // Print the event's info.
+				c := color.New(color.FgCyan).Add(color.Underline)
+				c.Println(event)
 				changed <- true
 			case err := <-w.Error:
 				log.Fatalln(err)
@@ -56,6 +58,6 @@ func publisher(srv *eventsource.Server) {
 		<-changed
 		srv.Publish([]string{"time"}, timeEvent(start))
 		start = start.Add(time.Second)
-		log.Println(start)
+		// log.Println(start)
 	}
 }
