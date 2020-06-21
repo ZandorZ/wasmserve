@@ -46,7 +46,7 @@ const indexHTML = `<!DOCTYPE html>
 			const source = await(await fetch('main.wasm')).arrayBuffer();
 			const  result = await WebAssembly.instantiate(source, go.importObject);
 			go.run(result.instance).then( () => {
-				console.log("pronto", go);
+				console.log("wasm ready");
 			});
 		}catch(e){
 			console.error(e);
@@ -87,10 +87,9 @@ const indexHTML = `<!DOCTYPE html>
 `
 
 var (
-	flagHTTP        = flag.String("http", ":4200", "HTTP bind address to serve")
+	flagHTTP        = flag.String("http", ":9900", "HTTP bind address to serve")
 	flagTags        = flag.String("tags", "", "Build tags")
 	flagAllowOrigin = flag.String("allow-origin", "", "Allow specified origin (or * for all origins) to make requests to this server")
-	changed         = make(chan bool)
 )
 
 func ensureModule(path string) ([]byte, error) {
@@ -249,11 +248,10 @@ func handle(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	flag.Parse()
-	go watchFiles()
 
 	srv := eventsource.NewServer()
 	srv.Gzip = true
-	go publisher(srv)
+	go watchFiles(srv)
 
 	defer srv.Close()
 	l, err := net.Listen("tcp", *flagHTTP)
@@ -261,7 +259,9 @@ func main() {
 		return
 	}
 	defer l.Close()
+
 	http.HandleFunc("/", handle)
 	http.HandleFunc("/watch", srv.Handler("time"))
+	http.Handle("/assets/", NoCache(http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets")))))
 	http.Serve(l, nil)
 }
